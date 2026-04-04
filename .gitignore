@@ -15,7 +15,6 @@ Thumbs.db
 
 # Go-specific
 vendor/
-go.sum
 *.out
 *.exe
 *.test
