@@ -6,7 +6,7 @@ description: |
   resource metrics, and sends enriched incident payloads to any webhook
   (n8n, Jenkins, Zapier, custom APIs) for automated remediation.
 type: application
-version: 1.0.0
+version: 1.0.0-build.$(date +%s)
 appVersion: "1.0.0"
 home: https://github.com/KubeSynapse/kubesynapse
 sources:

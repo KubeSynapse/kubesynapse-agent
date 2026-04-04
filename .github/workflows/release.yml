@@ -53,14 +53,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Create gh-pages branch if it doesn't exist
+      - name: Update Chart Version
         run: |
-          if ! git rev-parse --verify origin/gh-pages > /dev/null 2>&1; then
-            git checkout --orphan gh-pages
-            git rm -rf .
-            git commit --allow-empty -m "Initial commit for gh-pages"
-            git push origin gh-pages
-          fi
+          TIMESTAMP=$(date +%s)
+          sed -i "s/version: .*/version: 1.0.0-build.$TIMESTAMP/" charts/kubesynapse/Chart.yaml
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -69,3 +65,4 @@ jobs:
         uses: helm/chart-releaser-action@v1.7.0
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_SKIP_EXISTING: true
