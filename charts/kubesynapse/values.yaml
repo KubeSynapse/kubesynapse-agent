@@ -1,0 +1,88 @@
+# Default values for kubesynapse.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  namespace: synapse
+
+agent:
+  image:
+    repository: kubesynapse-agent
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "1.0.0"
+  replicaCount: 1
+  # persistence: Enable PVC for file-based deduplication persistence.
+  persistence:
+    enabled: false
+    storageClass: ""
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+  config:
+    # deduplicationMode: How the agent remembers past incidents.
+    # Options: "memory" (volatile), "file" (requires persistence.enabled), "redis" (distributed)
+    deduplicationMode: "memory"
+    
+    # persistencePath: Only used if deduplicationMode is "file"
+    persistencePath: "/data/dedup.json"
+    # --- METADATA ---
+    # clusterName: A human-readable identifier. (Optional)
+    # If left as "kubernetes-production" or empty, the agent will attempt to
+    # auto-discover the name from GCP/AWS node and namespace labels.
+    clusterName: ""
+
+    # watchNamespaces: Comma-separated list of namespaces to monitor.
+    # Leave empty "" to monitor the entire cluster (requires ClusterRole).
+    watchNamespaces: ""
+
+    # --- STATE STORAGE ---
+    # redisUrl: Points to the local or central Redis instance for deduplication.
+    # Default is the demo-infra service name. Set to external DNS for Prod.
+    # If empty "", the agent defaults to in-memory deduplication.
+    redisUrl: ""
+    # redisPassword: Use this for authenticated Redis (Elasticache/Azure).
+    redisPassword: ""
+    # redisUseTLS: Set to true for encrypted cloud Redis connections.
+    redisUseTLS: false
+
+    # --- WEBHOOK CONFIGURATION ---
+    # The default URL points to our decoupled N8N workflow engine
+    webhookUrl: "http://kubesynapse-infra-n8n.aiops.svc.cluster.local:5678/webhook/k8s-incident"
+    
+    # Example 1. Jenkins URL Token: "https://jenkins.internal.company.com/generic-webhook-trigger/invoke?token=MY_SECRET"
+    # Example 2. AWS API Gateway: "https://a1b2c3d4.execute-api.us-east-1.amazonaws.com/prod/k8s-incident"
+    
+    # --- WEBHOOK HEADERS ---
+    # Custom headers injected into every outbound webhook POST (Optional)
+    webhookHeaders: {}
+      # Authorization: "Bearer my-secret-token"
+      # x-api-key: "ak_948j39d93nf9"
+      # Jenkins-Crumb: "c2847ffb00c..."
+
+    # --- TUNING & PERFORMANCE ---
+    # restartThreshold: Minimum number of container restarts before an alert is fired.
+    # Prevents alert fatigue for minor startup glitches.
+    restartThreshold: 3
+
+    # cooldownSeconds: Time to wait before reporting the same pod/error again.
+    # Prevents getting spammed by the same CrashLoopBackOff.
+    cooldownSeconds: 300
+
+    # Number of log lines to tail from crashing pods
+    logTailLines: 250
+    
+    # Health server port
+    healthPort: 8080
+    # Metrics server port (Prometheus)
+    metricsPort: 9090
+    
+    # logLevel: Set to "debug" for intensive troubleshooting. (debug, info, warn, error)
+    logLevel: "info"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
