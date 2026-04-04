@@ -23,6 +23,15 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Create gh-pages branch if it doesn't exist
+        run: |
+          if ! git rev-parse --verify origin/gh-pages > /dev/null 2>&1; then
+            git checkout --orphan gh-pages
+            git rm -rf .
+            git commit --allow-empty -m "Initial commit for gh-pages"
+            git push origin gh-pages
+          fi
+
       - name: Install Helm
         uses: azure/setup-helm@v4
 
