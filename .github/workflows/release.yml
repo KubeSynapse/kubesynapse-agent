@@ -24,35 +24,6 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/kubesynapse-agent
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: kubesynapse-agent
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
       - name: Auto-increment Chart Version
         run: |
           # Get the latest tag version
@@ -66,14 +37,54 @@ jobs:
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           
-          # Update Chart.yaml
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          
+          # Update Chart.yaml and values.yaml
           sed -i "s/version: .*/version: $NEW_VERSION/" charts/kubesynapse/Chart.yaml
           sed -i "s/appVersion: .*/appVersion: \"$NEW_VERSION\"/" charts/kubesynapse/Chart.yaml
+          sed -i "s/tag: .*/tag: \"$NEW_VERSION\"/" charts/kubesynapse/values.yaml
           
-          # Verify and commit
-          git add charts/kubesynapse/Chart.yaml
-          git commit -m "Bump chart version to $NEW_VERSION" || true
+          # Commit and push version changes
+          git add charts/kubesynapse/Chart.yaml charts/kubesynapse/values.yaml
+          git commit -m "Bump chart version to $NEW_VERSION"
           git push origin main
+          
+          # Create and push new tag
+          git tag "kubesynapse-$NEW_VERSION"
+          git push origin "kubesynapse-$NEW_VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Version From Latest Tag
+        id: version
+        run: |
+          echo "version=${{ env.NEW_VERSION }}" >> $GITHUB_OUTPUT
+          echo "tag=kubesynapse-${{ env.NEW_VERSION }}" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/kubesynapse-agent
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: kubesynapse-agent
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
       - name: Install Helm
         uses: azure/setup-helm@v4

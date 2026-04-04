@@ -1,0 +1,32 @@
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial enterprise release with Dispatcher/Source/Sink pattern
+    - kind: added
+      description: Real-time CPU/Memory metrics collection via Metrics API
+    - kind: added
+      description: Configurable log tailing with automatic secret redaction
+  artifacthub.io/license: MIT
+apiVersion: v2
+appVersion: 1.0.1
+description: 'Enterprise-grade, modular Kubernetes AIOps agent. Monitors pods for
+  CrashLoopBackOff and other failures, collects deep logs and real-time resource metrics,
+  and sends enriched incident payloads to any webhook (n8n, Jenkins, Zapier, custom
+  APIs) for automated remediation. '
+home: https://github.com/KubeSynapse/kubesynapse
+keywords:
+- kubernetes
+- aiops
+- monitoring
+- incident-response
+- webhook
+- ollama
+- n8n
+maintainers:
+- name: Raghu Tekumudi
+  url: https://github.com/KubeSynapse
+name: kubesynapse
+sources:
+- https://github.com/KubeSynapse/kubesynapse
+type: application
+version: 1.0.1
