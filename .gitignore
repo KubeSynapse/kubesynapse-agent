@@ -1,0 +1,37 @@
+# Binaries
+bin/
+kubesynapse
+k8synapse
+main
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Go-specific
+vendor/
+go.sum
+*.out
+*.exe
+*.test
+*.prof
+
+# Kubernetes/Helm
+.kube/
+*.tgz
+charts/*/charts/
+charts/*/tmp/
+
+# Editor/IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+.!*

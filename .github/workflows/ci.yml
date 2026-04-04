@@ -1,0 +1,89 @@
+name: CI - KubeSynapse Unified Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-charts:
+    name: "Helm Chart Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Agent Chart
+        run: helm lint agent/charts/kubesynapse
+
+      - name: Lint Infra Chart
+        run: helm lint agent-demo/charts/kubesynapse-infra
+
+  agent-ci:
+    name: "Agent CI (Go)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: agent/kubesynapse-agent/go.sum
+
+      - name: Go Linter (golangci-lint)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: agent/kubesynapse-agent
+
+      - name: Build Agent
+        run: |
+          cd agent/kubesynapse-agent
+          go mod tidy
+          go build ./cmd/kubesynapse/
+
+      - name: Run Tests with Coverage
+        run: |
+          cd agent/kubesynapse-agent
+          go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: agent/kubesynapse-agent/coverage.out
+          flags: agent
+          name: codecov-umbrella
+          fail_ci_if_error: false # Don't fail if Codecov is down
+
+  dashboard-ci:
+    name: "Dashboard CI (Node.js)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Client - Install & Build
+        working-directory: dashboard/client
+        run: |
+          npm ci
+          npm run build
+
+      - name: Server - Install & Type Check
+        working-directory: dashboard/server
+        run: |
+          npm ci
+          npx tsc --noEmit
