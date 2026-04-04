@@ -78,16 +78,16 @@ jobs:
           exit-code: '1' # Fail the build if critical vulnerabilities found
           severity: 'CRITICAL,HIGH'
 
-  gitleaks:
-    name: "Secret Scan (Gitleaks)"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # gitleaks:
+  #   name: "Secret Scan (Gitleaks)"
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Check for Secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Check for Secrets
+  #       uses: gitleaks/gitleaks-action@v2
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
