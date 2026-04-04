@@ -28,8 +28,16 @@ chmod +x setup.sh
 
 ### Manual Installation (Helm)
 
+**From Local Path:**
 ```bash
 helm upgrade --install kubesynapse ./charts/kubesynapse --namespace synapse --create-namespace
+```
+
+**From Official Repository:**
+```bash
+helm repo add kubesynapse https://KubeSynapse.github.io/kubesynapse-agent/
+helm repo update
+helm upgrade --install kubesynapse kubesynapse/kubesynapse --namespace synapse --create-namespace
 ```
 
 ## Repository Structure 📂

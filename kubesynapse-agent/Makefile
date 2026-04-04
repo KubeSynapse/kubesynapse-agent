@@ -2,8 +2,8 @@
 
 # Variables
 BINARY_NAME := kubesynapse
-IMAGE_NAME := kubesynapse
-IMAGE_TAG  := latest
+IMAGE_NAME := kubesynapse-agent
+IMAGE_TAG  := 1.0.0
 NAMESPACE  := aiops
 
 help: ## Show this help
