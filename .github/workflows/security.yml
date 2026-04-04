@@ -1,4 +1,4 @@
-name: Security - KubeSynapse Unified Scans
+name: Security - KubeSynapse Agency Scans
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'go', 'javascript' ]
+        language: [ 'go' ]
 
     steps:
       - name: Checkout
@@ -52,7 +52,7 @@ jobs:
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          cd agent/kubesynapse-agent
+          cd kubesynapse-agent
           govulncheck ./...
 
   trivy:
@@ -65,7 +65,7 @@ jobs:
       - name: Build local images for scanning
         run: |
           # Build a light image for the purpose of scanning dependencies
-          cd agent/kubesynapse-agent
+          cd kubesynapse-agent
           docker build -t kubesynapse-agent:latest .
 
       - name: Run Trivy vulnerability scanner
