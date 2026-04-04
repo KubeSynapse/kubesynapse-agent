@@ -39,7 +39,7 @@ jobs:
       - name: Go Linter (golangci-lint)
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: '1.65.0'  # or higher, e.g., '1.66.0', etc.
           working-directory: kubesynapse-agent
 
       - name: Build Agent
