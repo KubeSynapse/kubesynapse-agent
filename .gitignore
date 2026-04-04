@@ -1,7 +1,7 @@
 # Binaries
 bin/
-kubesynapse
-k8synapse
+/kubesynapse-agent/kubesynapse
+/kubesynapse-agent/k8synapse
 main
 
 # OS-specific files
