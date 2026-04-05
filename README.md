@@ -17,14 +17,17 @@ KubeSynapse is an intelligent Kubernetes AIOps agent designed to automate incide
 - `kubectl` and `helm` installed and configured.
 - Go 1.26+ (for building from source).
 
-### Quick Setup
+### Demo Setup
 
-Use the provided setup script to deploy KubeSynapse to your cluster:
+For a complete demo environment, the setup script deploys the following services in the `synapse` namespace:
 
-```bash
-chmod +x setup.sh
-./setup.sh
-```
+- **Qdrant** (Vector Database): `qdrant.synapse.svc.cluster.local:6333`
+- **n8n** (Workflow Automation): `n8n.synapse.svc.cluster.local:5678`
+- **MLflow** (ML Lifecycle): `mlflow.synapse.svc.cluster.local:5000`
+- **Redis** (Cache/Deduplication): `redis.synapse.svc.cluster.local:6379`
+- **Ollama** (AI Models): `ollama.synapse.svc.cluster.local:11434`
+
+The KubeSynapse agent connects to these services automatically for enhanced functionality.
 
 ### Manual Installation (Helm)
 

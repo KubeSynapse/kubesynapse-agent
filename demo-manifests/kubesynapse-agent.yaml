@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubesynapse-agent
+  namespace: synapse
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubesynapse-agent
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "namespaces", "events"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubesynapse-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubesynapse-agent
+subjects:
+- kind: ServiceAccount
+  name: kubesynapse-agent
+  namespace: synapse
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubesynapse-agent
+  namespace: synapse
+  labels:
+    app: kubesynapse
+    component: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubesynapse
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: kubesynapse
+        component: agent
+    spec:
+      serviceAccountName: kubesynapse-agent
+      containers:
+      - name: kubesynapse
+        image: ghcr.io/kubesynapse/kubesynapse-agent/kubesynapse-agent:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DEDUPLICATION_MODE
+          value: "memory"
+        - name: WEBHOOK_URL
+          value: "http://n8n.synapse.svc.cluster.local:5678/webhook/k8s-incident"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: RESTART_THRESHOLD
+          value: "3"
+        - name: COOLDOWN_SECONDS
+          value: "300"
+        - name: LOG_TAIL_LINES
+          value: "250"
+        ports:
+        - containerPort: 8080
+          name: health
+        - containerPort: 9090
+          name: metrics
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubesynapse-agent
+  namespace: synapse
+spec:
+  selector:
+    app: kubesynapse
+    component: agent
+  ports:
+  - name: health
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090

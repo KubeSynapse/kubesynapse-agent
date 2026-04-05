@@ -1,0 +1,341 @@
+{
+  "name": "Enterprise AIOps Auto-Remediation Workflow (Ollama)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "k8s-incident",
+        "options": {}
+      },
+      "name": "Webhook (KubeSynapse)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "k8s-incident-webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://ollama.synapse.svc.cluster.local:11434/api/embeddings",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "nomic-embed-text"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ ($json.body.diagnostics ? JSON.stringify($json.body.diagnostics) : null) || $json.body.reason || \"Unknown Incident\" }}"
+            }
+          ]
+        }
+      },
+      "name": "1. Embed Diagnostics (Ollama)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://qdrant.synapse.svc.cluster.local:6333/collections/k8s-incidents/points/search",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"vector\": $json.embedding,\n  \"limit\": 1,\n  \"with_payload\": true\n} }}"
+      },
+      "name": "2. Qdrant RAG Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://ollama.synapse.svc.cluster.local:11434/api/generate",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "qwen2.5-coder:3b"
+            },
+            {
+              "name": "stream",
+              "value": false
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are an SRE AI diagnosing a Kubernetes failure and auditing for infrastructure best practices.\\n\\nMicroservice: ${$('Webhook (KubeSynapse)').first().json.body.microservice || 'Unknown'}\\nReason: ${$('Webhook (KubeSynapse)').first().json.body.reason || 'Unknown'}\\n\\n[INFRASTRUCTURE AUDIT]\\n- HPA Status: ${$('Webhook (KubeSynapse)').first().json.body.diagnostics.infrastructure_audit.hpa_status}\\n- PDB Status: ${$('Webhook (KubeSynapse)').first().json.body.diagnostics.infrastructure_audit.pdb_status}\\n- Probes Config: ${$('Webhook (KubeSynapse)').first().json.body.diagnostics.infrastructure_audit.probes_config}\\n- Violations: ${$('Webhook (KubeSynapse)').first().json.body.diagnostics.infrastructure_audit.best_practice_violations.join(', ') || 'None'}\\n\\nDiagnostics Data: ${$('Webhook (KubeSynapse)').first().json.body.diagnostics ? JSON.stringify($('Webhook (KubeSynapse)').first().json.body.diagnostics) : 'None'}\\n\\nPast Similar Incident Context: ${$json.result && $json.result.length > 0 ? $json.result[0].payload.response : 'None found'}\\n\\nOutput only JSON format with keys: root_cause, recommendation, confidence, infrastructure_optimization_recommendation.` }}"
+            }
+          ]
+        }
+      },
+      "name": "3. Ollama Diagnosis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = $input.first().json.response;\nlet llmDiagnosis = {};\ntry {\n  llmDiagnosis = JSON.parse(responseText);\n} catch(e) {\n  llmDiagnosis = { root_cause: responseText, recommendation: \"N/A\", confidence: 0 };\n}\n\nreturn { json: {\n  ...$('Webhook (KubeSynapse)').first().json.body,\n  diagnosis: llmDiagnosis\n}};"
+      },
+      "name": "4. Parse JSON Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://mlflow.synapse.svc.cluster.local:5000/api/2.0/mlflow/runs/create",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"experiment_id\": \"0\",\n  \"tags\": [\n    {\"key\": \"model\", \"value\": \"qwen2.5-coder:3b\"},\n    {\"key\": \"microservice\", \"value\": $json.microservice || 'Unknown' }\n  ]\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Host",
+              "value": "localhost"
+            }
+          ]
+        }
+      },
+      "name": "5a. MLflow Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://your-org.atlassian.net/rest/api/3/issue",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"fields\": {\n    \"project\": { \"key\": \"OPS\" },\n    \"summary\": `[AUTO] K8s Pod Crash: ${$json.microservice || 'Unknown'}`,\n    \"issuetype\": { \"name\": \"Incident\" },\n    \"description\": {\n      \"type\": \"doc\", \"version\": 1,\n      \"content\": [{\n        \"type\": \"paragraph\",\n        \"content\": [{ \"type\": \"text\", \"text\": `Root Cause:\\n${$json.diagnosis ? $json.diagnosis.root_cause : $json.root_cause}\\n\\nRecommendation:\\n${$json.diagnosis ? $json.diagnosis.recommendation : $json.recommendation}` }]\n      }]\n    }\n  }\n} }}"
+      },
+      "name": "5b. Jira Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://${$json.repository_url.replace('https://', '').replace('.git', '')}/rest/api/1.0/projects/SCM/repos/${$json.microservice}/browse/internal/health/health.go",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SCM_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "name": "6a. Fetch Health Check Code",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://ollama.synapse.svc.cluster.local:11434/api/generate",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "qwen2.5-coder:3b"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ `You are an expert Go developer. Review this health check code:\\n\\n${$json.text}\\n\\nDoes this readiness probe check downstream dependencies like DB or Webhooks? If not, provide the EXPLICIT code diff to add a dependency check. Output only JSON: { needs_remediation: true/false, diff: \"...\" }` }}"
+            }
+          ]
+        }
+      },
+      "name": "6b. AI Code Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://${$('Webhook (KubeSynapse)').first().json.body.repository_url.replace('https://', '')}/rest/api/1.0/projects/SCM/repos/${$('Webhook (KubeSynapse)').first().json.body.microservice}/pull-requests",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"title\": \"[AIOps] Upgrade Readiness Probe to Smart Check\",\n  \"description\": \"Automatically generated remediation to add dependency checks to readiness probe.\",\n  \"fromRef\": { \"id\": \"refs/heads/aiops-remediation\" },\n  \"toRef\": { \"id\": \"refs/heads/master\" }\n} }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SCM_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "name": "6c. Create Pull Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"text\": `🚨 *K8s Incident:* ${$json.microservice}\\n*Reason:* ${$json.reason}\\n*AI Root Cause:* ${$json.diagnosis ? $json.diagnosis.root_cause : 'Unknown'}\\n*Code Fix Proposed:* ${$json.pr_url || 'N/A'}`\n} }}"
+      },
+      "name": "5c. Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1800,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (KubeSynapse)": {
+      "main": [
+        [
+          {
+            "node": "1. Embed Diagnostics (Ollama)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Embed Diagnostics (Ollama)": {
+      "main": [
+        [
+          {
+            "node": "2. Qdrant RAG Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Qdrant RAG Search": {
+      "main": [
+        [
+          {
+            "node": "3. Ollama Diagnosis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Ollama Diagnosis": {
+      "main": [
+        [
+          {
+            "node": "4. Parse JSON Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Parse JSON Response": {
+      "main": [
+        [
+          {
+            "node": "5a. MLflow Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "5b. Jira Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "6a. Fetch Health Check Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6a. Fetch Health Check Code": {
+      "main": [
+        [
+          {
+            "node": "6b. AI Code Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6b. AI Code Audit": {
+      "main": [
+        [
+          {
+            "node": "6c. Create Pull Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6c. Create Pull Request": {
+      "main": [
+        [
+          {
+            "node": "5c. Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

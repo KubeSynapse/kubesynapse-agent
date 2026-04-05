@@ -1,0 +1,58 @@
+# Test pods that deliberately crash — used for integration testing the watcher.
+# Deploy these into any namespace to trigger the watcher.
+
+---
+# Test 1: OOMKilled — allocates memory until killed
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crash-test-oom
+  namespace: synapse
+  labels:
+    app: crash-test-oom
+    purpose: watcher-test
+spec:
+  containers:
+    - name: oom-container
+      image: progrium/stress
+      args: ["--vm", "1", "--vm-bytes", "512M", "--vm-hang", "1"]
+      resources:
+        limits:
+          memory: "64Mi"  # Deliberately low — will OOMKill
+        requests:
+          memory: "32Mi"
+  restartPolicy: Always
+
+---
+# Test 2: CrashLoopBackOff — exits immediately with error
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crash-test-loop
+  namespace: synapse
+  labels:
+    app: crash-test-loop
+    purpose: watcher-test
+spec:
+  containers:
+    - name: crash-container
+      image: busybox
+      command: ["/bin/sh", "-c", "echo 'ERROR: Database connection failed' && exit 1"]
+  restartPolicy: Always
+
+---
+# Test 3: Slow crash — runs for 10 seconds then exits (simulates intermittent failure)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crash-test-intermittent
+  namespace: synapse
+  labels:
+    app: crash-test-intermittent
+    purpose: watcher-test
+spec:
+  containers:
+    - name: intermittent-container
+      image: busybox
+      command: ["/bin/sh", "-c", "echo 'Starting...' && sleep 10 && echo 'FATAL: Out of disk space' && exit 137"]
+  restartPolicy: Always
