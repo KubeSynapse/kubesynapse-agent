@@ -11,6 +11,42 @@ entries:
           description: Configurable log tailing with automatic secret redaction
       artifacthub.io/license: MIT
     apiVersion: v2
+    appVersion: 1.0.3
+    created: "2026-04-05T17:41:04.872208576Z"
+    description: 'Enterprise-grade, modular Kubernetes AIOps agent. Monitors pods
+      for CrashLoopBackOff and other failures, collects deep logs and real-time resource
+      metrics, and sends enriched incident payloads to any webhook (n8n, Jenkins,
+      Zapier, custom APIs) for automated remediation. '
+    digest: 6934a5e0c81246d3c17c974ece707a09b6740d9b13dcb9bc1e32f0ecba1d6735
+    home: https://github.com/KubeSynapse/kubesynapse
+    keywords:
+    - kubernetes
+    - aiops
+    - monitoring
+    - incident-response
+    - webhook
+    - ollama
+    - n8n
+    maintainers:
+    - name: Raghu Vamsi
+      url: https://github.com/KubeSynapse
+    name: kubesynapse
+    sources:
+    - https://github.com/KubeSynapse/kubesynapse
+    type: application
+    urls:
+    - https://github.com/KubeSynapse/kubesynapse-agent/releases/download/kubesynapse-1.0.3/kubesynapse-1.0.3.tgz
+    version: 1.0.3
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: added
+          description: Initial enterprise release with Dispatcher/Source/Sink pattern
+        - kind: added
+          description: Real-time CPU/Memory metrics collection via Metrics API
+        - kind: added
+          description: Configurable log tailing with automatic secret redaction
+      artifacthub.io/license: MIT
+    apiVersion: v2
     appVersion: 1.0.2
     created: "2026-04-04T22:07:29.078009035Z"
     description: 'Enterprise-grade, modular Kubernetes AIOps agent. Monitors pods
@@ -181,4 +217,4 @@ entries:
     urls:
     - https://github.com/KubeSynapse/kubesynapse-agent/releases/download/kubesynapse-1.0.0-build.1775336200/kubesynapse-1.0.0-build.1775336200.tgz
     version: 1.0.0-build.1775336200
-generated: "2026-04-04T22:07:29.078035275Z"
+generated: "2026-04-05T17:41:04.872239715Z"
