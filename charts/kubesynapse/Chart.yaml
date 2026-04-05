@@ -20,7 +20,7 @@ keywords:
   - ollama
   - n8n
 maintainers:
-  - name: Raghu Tekumudi
+  - name: Raghu Vamsi
     url: https://github.com/KubeSynapse
 annotations:
   artifacthub.io/license: MIT
