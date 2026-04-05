@@ -10,7 +10,7 @@ agent:
     repository: ghcr.io/kubesynapse/kubesynapse-agent
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.0.3"
+    tag: "1.0.4"
   replicaCount: 1
   # persistence: Enable PVC for file-based deduplication persistence.
   persistence:
