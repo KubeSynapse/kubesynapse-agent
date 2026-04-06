@@ -31,8 +31,7 @@
 7. [Helm Installation](#-helm-installation)
 8. [EKS Production Deployment](#-eks-production-deployment)
 9. [Integrations](#-integrations)
-10. [AIOps Pipeline — End-to-End Flow](#-aiops-pipeline--end-to-end-flow)
-11. [EKS Intelligent Incident Responder](#-eks-intelligent-incident-responder)
+10. [AIOps Pipeline — Reference Architecture](#-aiops-pipeline--reference-architecture)
 12. [Security & IAM Best Practices](#-security--iam-best-practices)
 13. [Cost & Scaling](#-cost--scaling)
 14. [Development](#-development)
@@ -61,7 +60,7 @@ KubeSynapse is designed for **SRE teams, platform engineering teams, and DevOps 
 
 ### The Reality of Modern Incident Response
 
-Every production Kubernetes environment generates thousands of events, log lines, and alerts every minute. Despite tooling like Splunk, PagerDuty, and Grafana, engineering teams still face:
+Every production Kubernetes environment generates thousands of events, log lines, and alerts every minute. Despite tooling like PagerDuty, Grafana, and CloudWatch, engineering teams still face:
 
 - **Alert Fatigue** — On-call engineers receive hundreds of alerts nightly. 70–80% are noise or duplicates, leading to burnout and missed real incidents.
 - **Slow MTTR** — Average industry MTTR is 1–4 hours. Every minute of downtime costs $5,000–$300,000 depending on the system.
@@ -87,12 +86,12 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         DATA SOURCES                                    │
-│        Splunk / AWS CloudWatch / Prometheus / Kubernetes Events         │
+│         Kubernetes Events API / AWS CloudWatch / Prometheus             │
 └────────────────────────────┬────────────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 1 — LOG INGESTION & PREPROCESSING                    │
+│              LAYER 1 — LOG INGESTION & PREPROCESSING  ✅ Implemented    │
 │   KubeSynapse Agent (Go) watches pod events via K8s API                 │
 │   Collects: crash logs, describe output, resource metrics, events       │
 │   Output: Structured incident payload dispatched to webhook             │
@@ -100,7 +99,7 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 2 — ANOMALY DETECTION ENGINE                         │
+│              LAYER 2 — ANOMALY DETECTION ENGINE  📐 Planned             │
 │   scikit-learn Isolation Forest (unsupervised ML)                       │
 │   No labeled training data needed — learns your own log patterns        │
 │   Anomaly score < -0.1 → Flagged for AI analysis                       │
@@ -108,7 +107,7 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 3 — RAG KNOWLEDGE RETRIEVAL                          │
+│              LAYER 3 — RAG KNOWLEDGE RETRIEVAL  📐 Planned              │
 │   Qdrant Vector DB → Semantic search on past incidents + runbooks       │
 │   nomic-embed-text (via Ollama) for local embeddings                    │
 │   Returns top-3 similar past incidents with resolution steps            │
@@ -116,7 +115,7 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 4 — LOCAL LLM REASONING ENGINE                       │
+│              LAYER 4 — LOCAL LLM REASONING ENGINE  📐 Planned           │
 │   Ollama running Qwen3:7b, DeepSeek-Coder, or llama3.2                 │
 │   Zero cloud API tokens. Data never leaves your network.                │
 │   Output: { root_cause, severity, recommended_fix, confidence_score }  │
@@ -124,7 +123,7 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 5 — MULTI-AGENT DISPATCHER (n8n)                     │
+│              LAYER 5 — MULTI-AGENT DISPATCHER  ✅ Implemented via n8n   │
 │   ├─ Incident Agent  → Creates Jira ticket with full AI diagnosis       │
 │   ├─ Notification Agent → Posts to Slack/Teams with AI summary         │
 │   ├─ Remediation Agent → Triggers K8s restart / Lambda (conf > 85%)   │
@@ -133,7 +132,7 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              LAYER 6 — OBSERVABILITY & AUDIT LAYER                      │
+│              LAYER 6 — OBSERVABILITY & AUDIT LAYER  📐 Planned          │
 │   MLflow → Logs every AI decision, anomaly score, agent action          │
 │   Jaeger (optional) → Distributed tracing across agent pipeline         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -145,13 +144,13 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
 [EKS Pod: CrashLoopBackOff / OOMKilled / Error]
      │
      ▼
-[Splunk Alert fires] — search: kubernetes.pod.status=Error OR restart_count > 3
+[KubeSynapse Agent] — watches Kubernetes API continuously
+     ├── detects pod restarts > threshold
+     ├── collects: crash logs, describe output, resource metrics, events
+     └── dispatches enriched incident payload via HTTP webhook
      │
      ▼
-[Splunk Webhook] — POST to n8n webhook: { microservice, namespace, restart_count, cluster }
-     │
-     ▼
-[n8n Webhook Trigger] → [Code Node: extract + validate payload]
+[Webhook Consumer — n8n / custom API / Lambda / Zapier]
      │
      ▼
 [Diagnostics Collector — *optional*: Jenkins / curl / Argo / Lambda]
@@ -177,21 +176,18 @@ All components are **open-source, free, and enterprise-ready**:
 
 | Component | Tool | Purpose |
 |-----------|------|---------|
-| **Core Agent** | Go 1.22+ | Kubernetes pod watcher, log collector, metric collector |
-| **Alert Source** | Splunk / CloudWatch / Prometheus | Detects EKS pod crashes, fires webhook |
+| **Core Agent** | Go 1.22+ | Watches Kubernetes API, collects crash logs + metrics, dispatches webhook |
 | **Orchestration** | n8n (or any webhook consumer) | Workflow engine connecting all pipeline stages |
 | **Data Collection** | Jenkins *(optional)* | Runs `kubectl` diagnostics commands — replaceable with any HTTP-callable script, Lambda, or Argo Workflow |
-| **Anomaly Detection** | scikit-learn Isolation Forest | Unsupervised ML with no labeled training data |
+| **Anomaly Detection** | scikit-learn Isolation Forest | *(Planned)* Unsupervised ML — no labeled training data |
 | **Local LLM Runtime** | Ollama | Run Qwen3/DeepSeek/llama3.2 locally, OpenAI-compat API |
 | **LLM Models** | Qwen3:7b, DeepSeek-Coder, llama3.2 | Reasoning + root cause analysis, zero tokens cost |
-| **Embeddings** | nomic-embed-text (Ollama) | Convert text to vectors for RAG |
-| **Vector Database** | Qdrant | Store & search past incidents/runbooks |
-| **Notification** | Slack / Teams Webhooks | Rich incident alerts to team channels |
-| **Ticketing** | Jira REST API | Auto-create incidents with full AI context |
-| **AI Observability** | MLflow | Log AI decisions, track model drift |
+| **Embeddings** | nomic-embed-text (Ollama) | *(Planned)* Convert text to vectors for RAG |
+| **Vector Database** | Qdrant | Store runbooks for RAG; deployed in demo stack |
+| **Notification** | Slack / Teams Webhooks | Rich incident alerts — configured via n8n workflow |
+| **Ticketing** | Jira REST API | Auto-create incidents — configured via n8n workflow |
+| **AI Observability** | MLflow | Deployed in demo stack; full logging integration planned |
 | **K8s Deployment** | Helm 3 | Package and deploy all components |
-| **Cloud Infrastructure** | AWS EKS, Lambda, CloudWatch | Your existing cloud stack |
-| **IaC** | Terraform | Deploy entire stack with one command |
 
 ### Infrastructure Requirements
 
@@ -238,7 +234,7 @@ git clone https://github.com/KubeSynapse/kubesynapse-agent.git
 cd kubesynapse-agent
 
 # Deploy the full stack to the 'synapse' namespace
-./setup.sh
+./demo-manifests/setup.sh
 ```
 
 The setup script deploys the following services in the `synapse` namespace:
@@ -549,49 +545,43 @@ helm upgrade jenkins jenkins/jenkins \
 
 ## 🔌 Integrations
 
-### Splunk Alert Configuration
+### How Alerts Are Triggered
 
-**Saved Search** *(runs every 2 minutes)*:
+KubeSynapse does **not** require an external alerting tool like Splunk to detect incidents. The Go agent watches the Kubernetes API directly and triggers the pipeline automatically when a pod enters a crash state.
 
-```spl
-index=kubernetes sourcetype=kube:events
-| search reason=BackOff OR reason=OOMKilling OR reason=Failed
-| stats count by kubernetes.pod_name, kubernetes.namespace_name, reason
-| where count > 2
-| eval microservice=kubernetes.pod_name, namespace=kubernetes.namespace_name
-```
+**The agent dispatches this payload to your configured webhook:**
 
-**Webhook Action** in Splunk → Alerts → Add Actions → Webhook:
-
-```
-URL: https://n8n-webhook.internal.yourdomain.com/webhook/eks-incident
-Method: POST
-Payload:
+```json
 {
-  "microservice": "$result.microservice$",
-  "namespace": "$result.namespace$",
-  "restart_count": "$result.count$",
-  "reason": "$result.reason$",
-  "cluster": "prod-eks-cluster",
-  "timestamp": "$trigger_time$"
+  "pod": "payment-service-7d9f8b-xk2p9",
+  "namespace": "production",
+  "reason": "OOMKilled",
+  "restart_count": 7,
+  "severity": "CRITICAL",
+  "crash_logs": "...",
+  "describe": "...",
+  "resource_usage": "...",
+  "timestamp": "2026-03-21T17:00:00Z"
 }
 ```
 
+You consume this webhook with **n8n, a Lambda, a custom API** — anything that accepts HTTP POST.
+
 ### Slack Configuration
 
-Rich Block Kit incident notifications are automatically posted to your `#incidents` channel with:
-- Microservice name + severity badge
-- Namespace + restart count
-- AI-generated diagnosis from Ollama/Claude
-- Cluster name + timestamp
+When configured in your n8n workflow, KubeSynapse posts rich Block Kit notifications to your `#incidents` channel:
+- Pod name + namespace + restart count
+- Severity level (CRITICAL / HIGH / MEDIUM)
+- AI-generated diagnosis from Ollama/Claude *(once LLM layer is wired in n8n)*
+- Timestamp + cluster context
 
 ### Jira Integration
 
-Tickets are auto-created with:
+When configured in your n8n workflow, tickets are auto-created with:
 - Summary: `[AUTO] EKS Pod Restart: <service> (<severity>)`
 - Priority: mapped from `CRITICAL → Highest`, `HIGH → High`, `MEDIUM → Medium`
 - Labels: `["eks", "auto-created", "<namespace>"]`
-- Description: full AI diagnosis + remediation steps
+- Description: full AI diagnosis + remediation steps *(once LLM layer is wired in n8n)*
 
 ### Production Variant — Claude API (No Local GPU Required)
 
@@ -638,7 +628,7 @@ The remaining layers (ML anomaly detection, RAG, LLM reasoning, observability da
 | `gemma3:12b` | ~8 GB | Strong instruction following | ~12s |
 | `llama3.2` | ~4.7 GB | Balanced reasoning | ~6s |
 | `qwen3:7b` | ~5 GB | Function calling + reasoning | ~5s |
-| `nomic-embed-text` | ~300 MB | RAG embeddings (required) | ~1s |
+| `nomic-embed-text` | ~300 MB | RAG embeddings *(needed when RAG is implemented)* | ~1s |
 
 
 ---
@@ -650,11 +640,10 @@ The remaining layers (ML anomaly detection, RAG, LLM reasoning, observability da
 > ⚠️ **Never** store tokens, API keys, or passwords in plain Helm `values.yaml`.
 
 ```bash
-# Store all integration secrets as Kubernetes Secrets
+# Store integration secrets as Kubernetes Secrets
 kubectl create secret generic synapse-secrets \
   --from-literal=slack-webhook=https://hooks.slack.com/services/YOUR/WEBHOOK \
   --from-literal=jira-api-token=YOUR_JIRA_TOKEN \
-  --from-literal=jenkins-password=YOUR_PASSWORD \
   --namespace synapse
 
 # Recommended: Use AWS Secrets Manager + External Secrets Operator
@@ -801,15 +790,14 @@ KubeSynapse Agent is configured via environment variables, typically injected fr
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WEBHOOK_URL` | n8n or custom webhook endpoint | *(required)* |
-| `WATCH_NAMESPACE` | Kubernetes namespace to monitor (`""` = all) | `""` |
+| `WEBHOOK_URL` | Webhook endpoint to dispatch incident payloads to (n8n, Lambda, custom API) | *(required)* |
+| `WATCH_NAMESPACE` | Kubernetes namespace to monitor (`""` = all namespaces) | `""` |
 | `LOG_LEVEL` | Agent log verbosity: `debug`, `info`, `warn` | `info` |
-| `DEDUP_WINDOW_SECONDS` | Deduplication window to suppress repeat alerts | `300` |
+| `DEDUP_WINDOW_SECONDS` | Deduplication window to suppress repeat alerts for the same pod | `300` |
 | `REDIS_URL` | Redis endpoint for deduplication state | `redis:6379` |
-| `OLLAMA_URL` | Ollama inference endpoint | `http://ollama:11434` |
 | `METRICS_PORT` | Prometheus metrics server port | `8080` |
-| `CRASH_THRESHOLD` | Minimum restart count to trigger alert | `3` |
-| `LOG_TAIL_LINES` | Number of log lines to collect per crash | `100` |
+| `CRASH_THRESHOLD` | Minimum restart count before an incident is dispatched | `3` |
+| `LOG_TAIL_LINES` | Number of log lines collected per crash event | `100` |
 
 ---
 
