@@ -135,7 +135,6 @@ KubeSynapse uses a **6-layer multi-agent AI pipeline** that runs entirely within
 ┌─────────────────────────────────────────────────────────────────────────┐
 │              LAYER 6 — OBSERVABILITY & AUDIT LAYER                      │
 │   MLflow → Logs every AI decision, anomaly score, agent action          │
-│   Taipy Dashboard → Real-time visual dashboard of AI activity           │
 │   Jaeger (optional) → Distributed tracing across agent pipeline         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -190,7 +189,6 @@ All components are **open-source, free, and enterprise-ready**:
 | **Notification** | Slack / Teams Webhooks | Rich incident alerts to team channels |
 | **Ticketing** | Jira REST API | Auto-create incidents with full AI context |
 | **AI Observability** | MLflow | Log AI decisions, track model drift |
-| **Dashboard** | Taipy | Real-time Python web UI |
 | **K8s Deployment** | Helm 3 | Package and deploy all components |
 | **Cloud Infrastructure** | AWS EKS, Lambda, CloudWatch | Your existing cloud stack |
 | **IaC** | Terraform | Deploy entire stack with one command |
