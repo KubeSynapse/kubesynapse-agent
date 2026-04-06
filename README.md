@@ -199,7 +199,7 @@ All components are **open-source, free, and enterprise-ready**:
 
 | Environment | Spec | Notes |
 |-------------|------|-------|
-| Local development (Mac M3 Pro 32GB) | CPU-only Ollama, Docker Compose | Full stack runs locally, no cloud spend |
+| Local development (Mac M3 Pro 32GB) | CPU-only Ollama, `kubectl` + `demo-manifests/` | Full stack runs locally against minikube/kind, no cloud spend |
 | Demo / POC | 1× g4dn.xlarge (~$0.50/hr) | T4 GPU for fast Ollama inference |
 | Production (EKS) | Separate node groups per workload | See [EKS Production Deployment](#-eks-production-deployment) |
 
@@ -231,7 +231,6 @@ The KubeSynapse Go agent (`kubesynapse-agent/`) is a Kubernetes-native process t
 - Kubernetes cluster (local: minikube/kind, or AWS EKS)
 - `kubectl` and `helm` installed and configured
 - Go 1.22+ *(for building from source)*
-- Docker / Docker Desktop
 
 ### Option 1 — One-Command Demo (Recommended)
 
@@ -255,18 +254,23 @@ The setup script deploys the following services in the `synapse` namespace:
 | **Redis** | `redis.synapse.svc.cluster.local:6379` | Deduplication cache |
 | **Ollama** | `ollama.synapse.svc.cluster.local:11434` | Local LLM inference |
 
-### Option 2 — Local Simulation (No EKS Required)
+### Option 2 — Local Simulation (minikube / kind)
 
-Test the full pipeline locally using Docker Compose and mock Splunk alerts:
+Test the full pipeline locally using the `demo-manifests/` included in the repo:
 
 ```bash
-# Start all infrastructure services
-docker compose -f docker/docker-compose.yml up -d
+# Deploy the full stack locally (minikube or kind)
+kubectl apply -f demo-manifests/qdrant.yaml
+kubectl apply -f demo-manifests/redis.yaml
+kubectl apply -f demo-manifests/ollama.yaml
+kubectl apply -f demo-manifests/n8n.yaml
+kubectl apply -f demo-manifests/mlflow.yaml
+kubectl apply -f demo-manifests/kubesynapse-agent.yaml
 
-# Pull LLM model
+# Pull LLM model (via Ollama pod)
 ollama pull llama3.2
 
-# Fire a simulated Splunk/EKS incident alert
+# Fire a simulated EKS incident alert directly at n8n
 curl -X POST http://localhost:5678/webhook/eks-incident \
   -H 'Content-Type: application/json' \
   -d '{
@@ -277,6 +281,12 @@ curl -X POST http://localhost:5678/webhook/eks-incident \
     "cluster": "prod-eks-cluster",
     "timestamp": "2026-03-21T17:00:00Z"
   }'
+```
+
+Or use the bundled setup script to deploy everything in one command:
+
+```bash
+./demo-manifests/setup.sh
 ```
 
 Watch the end-to-end pipeline execute in the **n8n Executions tab** at `http://localhost:5678`.
