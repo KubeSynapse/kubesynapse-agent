@@ -612,53 +612,15 @@ n8n Claude API node configuration:
 
 ---
 
-## 🤖 AIOps Pipeline — End-to-End Flow
+## 🤖 AIOps Pipeline — Reference Architecture
 
-### Python ML Pipeline (Local / On-Prem)
+> **📐 This section describes the intended full AIOps pipeline design.** It is a reference architecture for how the 6-layer Python ML pipeline integrates with the Go agent. Implementation is in progress.
 
-The standalone Python pipeline can be run alongside the Go agent for deep anomaly detection:
+### How the Current Repo Fits the Pipeline
 
-```
-devops-autopilot/
-├── layer1_ingestion/      # log_parser.py — parse logs from CloudWatch/Splunk/K8s
-├── layer2_anomaly/        # anomaly_detector.py — Isolation Forest ML
-├── layer3_rag/            # ingest_runbooks.py, query_rag.py — Qdrant RAG
-├── layer4_llm/            # llm_client.py — Ollama REST API client
-├── layer5_agents/         # orchestrator.py, remediation_agent.py — n8n dispatch
-├── layer6_observability/  # dashboard.py (Taipy), mlflow_logger.py
-├── logs/sample/           # sample_k8s.log, sample_app.log
-├── runbooks/              # oom_runbook.md, pod_crash_runbook.md
-├── docker/                # docker-compose.yml
-├── requirements.txt
-└── main.py                # entry point — runs full pipeline
-```
+The Go agent (`kubesynapse-agent/`) covers **Layers 1 & 5** today — it watches Kubernetes events, collects diagnostics, and dispatches enriched payloads to any webhook (n8n, custom API, Lambda). The demo manifests in `demo-manifests/` wire up the full supporting stack (Ollama, Qdrant, n8n, MLflow, Redis) on a live cluster.
 
-### Running the Pipeline
-
-```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Start infrastructure services
-docker compose -f docker/docker-compose.yml up -d
-
-# Pull embedding model
-ollama pull nomic-embed-text
-
-# Run the full pipeline
-python3 main.py
-```
-
-**Expected output:**
-```
-=== DevOps Autopilot: Starting Pipeline ===
-Step 1: Parsed 100 log events
-Step 2: Found 9 anomalies
-Step 3: Runbooks indexed in Qdrant
-Step 4: Diagnosis: The OOMKilled error on k8s-node-1 indicates the container...
-Step 5: Agents dispatched
-=== Pipeline Complete. Check MLflow at http://localhost:5000 ===
-```
+The remaining layers (ML anomaly detection, RAG, LLM reasoning, observability dashboard) are planned additions to the pipeline.
 
 ### Recommended Ollama Models
 
@@ -669,6 +631,7 @@ Step 5: Agents dispatched
 | `llama3.2` | ~4.7 GB | Balanced reasoning | ~6s |
 | `qwen3:7b` | ~5 GB | Function calling + reasoning | ~5s |
 | `nomic-embed-text` | ~300 MB | RAG embeddings (required) | ~1s |
+
 
 ---
 
@@ -846,33 +809,54 @@ KubeSynapse Agent is configured via environment variables, typically injected fr
 
 ```
 kubesynapse-agent/
-├── kubesynapse-agent/          # Core Go application
-│   ├── cmd/                    # CLI entrypoint (main.go)
+│
+├── kubesynapse-agent/                  # Core Go agent
+│   ├── cmd/kubesynapse/main.go         # CLI entrypoint
 │   ├── internal/
-│   │   ├── collector/          # Log + metrics collection
-│   │   ├── config/             # Configuration loading
-│   │   ├── dedup/              # Redis-backed deduplication
-│   │   ├── discovery/          # Pod name resolution
-│   │   ├── dispatcher/         # Incident payload dispatch
-│   │   ├── health/             # Health check endpoints
-│   │   ├── models/             # Shared data models
-│   │   ├── redactor/           # Secret scrubbing
-│   │   ├── sink/               # Pluggable output sinks
-│   │   └── watcher/            # Kubernetes pod event watcher
-│   ├── pkg/                    # Public library packages
+│   │   ├── collector/diagnostics.go    # Log + resource metrics collection
+│   │   ├── config/config.go            # Environment-variable config loading
+│   │   ├── dedup/dedup.go              # Redis-backed alert deduplication
+│   │   ├── discovery/cluster.go        # Pod name / label resolution
+│   │   ├── dispatcher/dispatcher.go    # Incident payload orchestration
+│   │   ├── dispatcher/interfaces.go    # Sink interface definitions
+│   │   ├── health/health.go            # /healthz + /readyz endpoints
+│   │   ├── models/types.go             # Shared incident data models
+│   │   ├── redactor/redactor.go        # Secret scrubbing from logs
+│   │   ├── sink/webhook/sink.go        # HTTP webhook output sink
+│   │   └── watcher/watcher.go          # Kubernetes pod event watcher
+│   ├── pkg/logger/logger.go            # Structured logger
 │   ├── Dockerfile
 │   ├── Makefile
-│   └── go.mod
+│   ├── go.mod
+│   └── .golangci.yml
 │
-├── charts/
-│   └── kubesynapse/            # Helm chart (v1.0.4)
-│       ├── Chart.yaml
-│       ├── values.yaml
-│       └── templates/
+├── charts/kubesynapse/                 # Helm chart (v1.0.4)
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/
+│       ├── deployment.yaml
+│       ├── configmap.yaml
+│       ├── rbac.yaml
+│       └── pvc.yaml
 │
-├── demo-manifests/             # Kubernetes YAML manifests for demo
-├── .github/                    # CI/CD GitHub Actions workflows
-└── setup.sh                    # One-command demo setup script
+├── demo-manifests/                     # Raw Kubernetes manifests for demo stack
+│   ├── setup.sh                        # One-command demo setup
+│   ├── destroy.sh                      # Teardown script
+│   ├── kubesynapse-agent.yaml          # Agent deployment manifest
+│   ├── n8n.yaml                        # n8n workflow engine
+│   ├── n8n-ollama-workflow.json        # Pre-built n8n workflow (importable)
+│   ├── ollama.yaml                     # Ollama LLM runtime
+│   ├── qdrant.yaml                     # Qdrant vector database
+│   ├── mlflow.yaml                     # MLflow tracking server
+│   ├── redis.yaml                      # Redis deduplication cache
+│   ├── test-crash-pod.yaml             # Pod to simulate CrashLoopBackOff
+│   ├── ingest_docs.sh                  # Script to seed Qdrant with runbooks
+│   └── k8s-sre-knowledge-base.md       # SRE runbooks for RAG ingestion
+│
+└── .github/workflows/
+    ├── ci.yml                          # Build + test on push
+    ├── release.yml                     # Helm chart release to GitHub Pages
+    └── security.yml                    # Security scanning
 ```
 
 ---
